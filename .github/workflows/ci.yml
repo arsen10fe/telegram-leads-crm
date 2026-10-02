@@ -1,0 +1,67 @@
+# Lint, types, unit + integration tests and a production build on every push and pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      # Integration tests wipe every table, so the database name must contain "test".
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lidogram_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lidogram_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lidogram_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lidogram_test
+      # Placeholders for `next build`: no real secrets are needed, AI and the bot stay off.
+      AUTH_SECRET: ci-only-auth-secret-not-used-anywhere-else
+      APP_URL: http://localhost:3000
+      AI_ENABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies (also generates the Prisma client)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests (unit + integration)
+        run: npm test
+
+      - name: Production build
+        run: npm run build
