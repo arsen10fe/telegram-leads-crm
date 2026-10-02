@@ -1,0 +1,15 @@
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	reverse_proxy web:3000 {
+		# The login rate limit keys on the client IP: never pass a client-sent X-Real-IP through.
+		header_up X-Real-IP {remote_host}
+	}
+}

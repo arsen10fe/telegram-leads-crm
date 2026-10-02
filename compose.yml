@@ -1,0 +1,26 @@
+# Local development only: PostgreSQL for `npm run dev` / `npm run bot:dev` and the test database.
+# Production uses compose.prod.yml.
+name: lidogram-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lidogram
+      POSTGRES_PASSWORD: lidogram
+      POSTGRES_DB: lidogram
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # Creates the lidogram_test database for integration tests on first start.
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lidogram -d lidogram"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pg-data:

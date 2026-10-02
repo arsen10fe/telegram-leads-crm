@@ -1,0 +1,26 @@
+# Dependencies and build output are recreated inside the image
+node_modules
+.next
+src/generated
+coverage
+*.tsbuildinfo
+
+# Secrets: env vars come from compose's env_file at runtime
+.env
+.env.*
+
+# Not part of the product
+data
+.git
+.claude
+.ai-factory
+.agents
+.playwright-mcp
+docs
+docker
+deploy
+compose*.yml
+Dockerfile
+Caddyfile
+*.log
+.DS_Store

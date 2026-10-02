@@ -1,0 +1,233 @@
+// Lidogram data model. Schema changes go through committed migrations only (never `db push`).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum LeadSource {
+  bot
+  telegram_account
+  manual
+}
+
+enum AiMode {
+  autopilot
+  copilot
+  off
+}
+
+enum AiStatus {
+  pending
+  ok
+  failed
+  disabled
+}
+
+enum TagOrigin {
+  manual
+  ai
+  rule
+}
+
+enum MessageDirection {
+  inbound
+  outbound
+  internal // system notes inside the CRM, never sent to the client
+}
+
+enum MessageAuthor {
+  client
+  manager
+  ai
+  system
+}
+
+enum DraftStatus {
+  pending
+  sent
+  rejected
+  superseded
+}
+
+enum JobStatus {
+  pending
+  running
+  done
+  failed
+}
+
+model Lead {
+  id               String     @id @default(cuid())
+  name             String
+  /// Normalized phone (+7…), @username, tg://user?id=… or e-mail.
+  contact          String?
+  /// phone | telegram | email
+  contactType      String?
+  request          String?    @db.Text
+  source           LeadSource
+  /// "bot" | "biz:<businessConnectionId>"; null for manual leads.
+  channelKey       String?
+  telegramChatId   BigInt?
+  telegramUserId   BigInt?
+  telegramUsername String?
+  aiMode           AiMode
+  needsHuman       Boolean    @default(false)
+  handoffReason    String?
+  handoffAt        DateTime?  @db.Timestamptz(3)
+  /// Validated AI output: service, budget, urgency, temperature, summary, confidence, hints.
+  qualification    Json?
+  aiStatus         AiStatus?
+  qualifiedAt      DateTime?  @db.Timestamptz(3)
+  /// Last client message; the Telegram Business reply window (24 h) starts here.
+  lastInboundAt    DateTime?  @db.Timestamptz(3)
+  /// Last message delivered to the client (manager or AI).
+  lastOutboundAt   DateTime?  @db.Timestamptz(3)
+  /// Drives list ordering: creation, inbound and outbound messages.
+  lastActivityAt   DateTime   @default(now()) @db.Timestamptz(3)
+  createdById      String?
+  createdAt        DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime   @updatedAt @db.Timestamptz(3)
+
+  tags     LeadTag[]
+  messages Message[]
+  drafts   ReplyDraft[]
+
+  @@index([createdAt])
+  @@index([lastActivityAt])
+  @@index([channelKey, telegramChatId])
+  @@index([needsHuman])
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String
+  /// Lowercased, trimmed name: case-insensitive uniqueness enforced by the database.
+  nameKey   String    @unique
+  color     String
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  leads LeadTag[]
+}
+
+model LeadTag {
+  leadId      String
+  tagId       String
+  origin      TagOrigin
+  confidence  Float?
+  /// The manager removed an AI tag: hidden everywhere, and the AI never re-adds it.
+  dismissedAt DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, tagId])
+  @@index([tagId])
+}
+
+model Message {
+  id                String           @id @default(cuid())
+  leadId            String
+  direction         MessageDirection
+  author            MessageAuthor
+  text              String           @db.Text
+  channelKey        String?
+  telegramChatId    BigInt?
+  telegramMessageId Int?
+  deliveryError     String?
+  /// Manager who sent it from the CRM.
+  actorId           String?
+  /// AI: model, tokens, latency; drafts: draftId, edited; system: kind, reason.
+  meta              Json?
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Idempotency for Telegram re-deliveries and echoes (rows with NULLs never collide).
+  @@unique([channelKey, telegramChatId, telegramMessageId])
+  @@index([leadId, createdAt])
+}
+
+model ReplyDraft {
+  id             String      @id @default(cuid())
+  leadId         String
+  text           String      @db.Text
+  noteForManager String?     @db.Text
+  status         DraftStatus @default(pending)
+  /// model, tokens, latency
+  meta           Json?
+  createdAt      DateTime    @default(now()) @db.Timestamptz(3)
+  decidedAt      DateTime?   @db.Timestamptz(3)
+  decidedById    String?
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, status])
+}
+
+model BusinessConnection {
+  /// Telegram business_connection_id
+  id            String   @id
+  ownerUserId   BigInt
+  ownerChatId   BigInt
+  ownerName     String?
+  ownerUsername String?
+  canReply      Boolean
+  isEnabled     Boolean
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model IntakeSession {
+  telegramChatId BigInt   @id
+  /// name | contact | request
+  step           String
+  data           Json
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model AgencySettings {
+  id                    Int      @id @default(1)
+  agencyName            String
+  knowledgeBase         String   @db.Text
+  defaultAiModeBot      AiMode   @default(autopilot)
+  defaultAiModeBusiness AiMode   @default(copilot)
+  triggerWords          String[]
+  autopilotMaxTurns     Int      @default(6)
+  minConfidence         Float    @default(0.7)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String
+  name               String
+  /// Private chat with the bot for manager notifications.
+  telegramChatId     BigInt?   @unique
+  telegramLinkedAt   DateTime? @db.Timestamptz(3)
+  linkToken          String?   @unique
+  linkTokenExpiresAt DateTime? @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  payload     Json
+  status      JobStatus @default(pending)
+  runAt       DateTime  @default(now()) @db.Timestamptz(3)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  lastError   String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([status, runAt])
+}
