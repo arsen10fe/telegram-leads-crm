@@ -72,6 +72,7 @@ export type DemoLead = {
   aiMode: "autopilot" | "copilot" | "off";
   needsHuman?: boolean;
   handoffReason?: string;
+  /** Age at seeding time: the demo leads sit 12–24 h back, like the previous day of real traffic. */
   hoursAgo: number;
   tags: Array<{ name: string; origin: "manual" | "ai"; confidence?: number }>;
   qualification: {
@@ -96,7 +97,7 @@ export const DEMO_LEADS: DemoLead[] = [
     request: "Нужен лендинг для студии йоги, хотим запустить рекламу к ноябрю. Бюджет около 80 тысяч.",
     source: "bot",
     aiMode: "autopilot",
-    hoursAgo: 30,
+    hoursAgo: 15,
     tags: [
       { name: "Лендинг", origin: "ai", confidence: 0.93 },
       { name: "Реклама", origin: "ai", confidence: 0.81 },
@@ -144,7 +145,7 @@ export const DEMO_LEADS: DemoLead[] = [
     aiMode: "copilot",
     needsHuman: true,
     handoffReason: "trigger",
-    hoursAgo: 5,
+    hoursAgo: 12.5,
     tags: [
       { name: "Сайт", origin: "ai", confidence: 0.95 },
       { name: "Горячий", origin: "ai", confidence: 0.88 },
@@ -191,7 +192,7 @@ export const DEMO_LEADS: DemoLead[] = [
     request: "Добрый день! Вы ведёте соцсети для кофеен?",
     source: "telegram_account",
     aiMode: "copilot",
-    hoursAgo: 52,
+    hoursAgo: 18,
     tags: [
       { name: "SMM", origin: "ai", confidence: 0.91 },
       { name: "Тёплый", origin: "ai", confidence: 0.74 },
@@ -230,7 +231,7 @@ export const DEMO_LEADS: DemoLead[] = [
     request: "Позвонил по рекомендации. Нужен Telegram-бот для записи клиентов в барбершоп.",
     source: "manual",
     aiMode: "off",
-    hoursAgo: 75,
+    hoursAgo: 21,
     tags: [
       { name: "Telegram-бот", origin: "manual" },
       { name: "Срочно", origin: "manual" },
@@ -255,7 +256,7 @@ export const DEMO_LEADS: DemoLead[] = [
     request: "Просто узнаю цены на логотип.",
     source: "bot",
     aiMode: "autopilot",
-    hoursAgo: 100,
+    hoursAgo: 23.5,
     tags: [
       { name: "Дизайн", origin: "ai", confidence: 0.89 },
       { name: "Холодный", origin: "ai", confidence: 0.72 },
