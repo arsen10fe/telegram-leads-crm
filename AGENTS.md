@@ -26,13 +26,20 @@ is ESM (`"type": "module"`); the bot worker runs TypeScript directly with `tsx`.
 
 ```
 .
-├── .ai-factory/              # AI Factory context: config, description, architecture, rules, plans
+├── .ai-factory/              # AI Factory context: config, description, architecture, rules, plans,
+│                             #   QA, patches — local only: git-ignored, not in the public repository
 ├── .claude/                  # agents, settings, workflow + project skills (see below)
+├── .github/workflows/ci.yml  # CI: lint, typecheck, unit + integration tests (Postgres 17), build
 ├── data/                     # source brief from the employer (.docx) — git-ignored, read-only
+├── deploy/                   # shared-host deploy: pack.sh (release tarball), snapshot.sh (read-only
+│                             #   host snapshot), backup.sh + cron.d/lidogram, nginx/ vhosts
 ├── docker/postgres-init.sql  # creates lidogram_test in the dev Postgres container
 ├── docs/
+│   ├── deployment.md         # production runbook: what runs where, redeploy, rollback, host rules
 │   ├── process-log.md        # running log of prompts and decisions for the retrospective
-│   └── product-sketch.md     # product sketch deliverable (Russian)
+│   ├── product-sketch.md     # product sketch deliverable (Russian)
+│   ├── retrospective.md      # retrospective deliverable (Russian)
+│   └── screenshots/          # CRM screenshots used by README.md (demo data only)
 ├── prisma/
 │   ├── schema.prisma         # data model; generator "prisma-client" → src/generated/prisma
 │   ├── migrations/           # committed migrations (never `db push`)
@@ -40,7 +47,8 @@ is ESM (`"type": "module"`); the bot worker runs TypeScript directly with `tsx`.
 │   └── seed-data.ts          # demo agency «Пиксель и Код» content
 ├── scripts/ai-smoke.ts       # manual OpenAI check (status, latency, tokens; `--models` lists models)
 ├── src/
-│   ├── app/                  # Next.js routes: login, (crm)/{leads,leads/[id],tags,dashboard,settings}, api/healthz
+│   ├── app/                  # Next.js routes: login, (crm)/{leads,leads/[id],tags,dashboard,settings},
+│   │                         #   api/healthz, api/changes (change stamp polled by AutoRefresh)
 │   │   └── _lib/             # session (cookies), action results, rate limit — web layer only
 │   ├── components/
 │   │   ├── ui/               # shadcn primitives (radix-nova)
@@ -59,8 +67,9 @@ is ESM (`"type": "module"`); the bot worker runs TypeScript directly with `tsx`.
 │   ├── test/                 # integration-test DB lifecycle (migrate, truncate)
 │   └── generated/prisma/     # generated Prisma client — git-ignored
 ├── Dockerfile                # one image for web, bot and migrate
-├── compose.prod.yml          # production: postgres, migrate (one-shot), web, bot, caddy (profile edge)
-├── Caddyfile                 # TLS edge for the `edge` profile
+├── compose.prod.yml          # production: postgres, migrate (one-shot), web, bot; web on 127.0.0.1 only
+├── compose.edge.yml          # optional Caddy edge (80/443, automatic TLS) — dedicated servers only
+├── Caddyfile                 # Caddy config used by compose.edge.yml
 ├── compose.yml               # dev-only Postgres (127.0.0.1:5433) for those who use Docker
 ├── prisma.config.ts          # Prisma 7 config (loads .env, datasource URL, seed command)
 ├── vitest.config.mts         # projects "unit" and "int" (int needs TEST_DATABASE_URL)
@@ -111,7 +120,9 @@ is ESM (`"type": "module"`); the bot worker runs TypeScript directly with `tsx`.
 
 | Document | Path | Description |
 |----------|------|-------------|
+| README | README.md | Public landing page (Russian): the brief, how each point is met, stack, demo, screenshots |
 | Process log | docs/process-log.md | Prompts, decisions, and screenshots list for the retrospective |
+| Deployment | docs/deployment.md | Production runbook for the shared VPS: commands, redeploy, rollback, rules |
 
 ## AI Context Files
 
