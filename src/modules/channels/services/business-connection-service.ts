@@ -61,3 +61,8 @@ export function findConnection(id: string): Promise<BusinessConnectionRecord | n
 export function listConnections(): Promise<BusinessConnectionRecord[]> {
   return businessConnectionRepository.listRecent();
 }
+
+/** Part of the CRM change stamp: a lead's reply availability depends on its connection. */
+export function getConnectionsStamp(): Promise<string> {
+  return businessConnectionRepository.changeStamp();
+}

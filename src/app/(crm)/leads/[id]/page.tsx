@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ArrowLeft, ExternalLink } from "lucide-react";
+import { readChangeStamp } from "@/app/_lib/change-stamp";
 import { AutoRefresh } from "@/components/crm/AutoRefresh";
 import { AiModeBadge, AwaitingReplyBadge, NeedsHumanBadge, SourceBadge } from "@/components/crm/badges";
 import { ConversationThread } from "@/components/crm/ConversationThread";
@@ -21,8 +22,11 @@ import { ReplyComposer } from "./ReplyComposer";
 
 export const dynamic = "force-dynamic";
 
-// One query per render: metadata and the page share it (the page refreshes every few seconds).
-const getLead = cache((id: string) => leads.getLeadDetails(id));
+// One query per render: metadata and the page share it. Read after the change stamp (see AutoRefresh).
+const getLead = cache(async (id: string) => {
+  await readChangeStamp();
+  return leads.getLeadDetails(id);
+});
 
 export async function generateMetadata({ params }: PageProps<"/leads/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -64,6 +68,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 
 export default async function LeadPage({ params }: PageProps<"/leads/[id]">) {
   const { id } = await params;
+  const stamp = await readChangeStamp();
   const [lead, allTags, availability, drafts] = await Promise.all([
     getLead(id),
     leads.listTags(),
@@ -76,7 +81,7 @@ export default async function LeadPage({ params }: PageProps<"/leads/[id]">) {
 
   return (
     <>
-      <AutoRefresh />
+      <AutoRefresh stamp={stamp} />
       <Link href="/leads" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" />
         Все лиды

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { readChangeStamp } from "@/app/_lib/change-stamp";
 import { AutoRefresh } from "@/components/crm/AutoRefresh";
 import { PageHeader } from "@/components/crm/PageHeader";
 import { tagColorClasses } from "@/components/crm/tag-colors";
@@ -92,6 +93,7 @@ function LeadsPerDay({ stats }: { stats: DashboardStats }) {
 }
 
 export default async function DashboardPage() {
+  const stamp = await readChangeStamp();
   const stats = await dashboard.getStats();
   const maxSource = Math.max(0, ...Object.values(stats.bySource));
   const maxTag = Math.max(0, ...stats.topTags.map((tag) => tag.count));
@@ -100,7 +102,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <AutoRefresh intervalMs={15_000} />
+      <AutoRefresh stamp={stamp} intervalMs={15_000} />
       <PageHeader title="Дашборд" description="Лиды и работа AI. Дни считаются по московскому времени." />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">

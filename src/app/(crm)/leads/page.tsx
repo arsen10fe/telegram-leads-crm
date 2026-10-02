@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Inbox, SearchX } from "lucide-react";
+import { readChangeStamp } from "@/app/_lib/change-stamp";
 import { AutoRefresh } from "@/components/crm/AutoRefresh";
 import {
   AiModeBadge,
@@ -119,6 +120,7 @@ function headerDescription(shown: number, total: number): string | undefined {
 
 export default async function LeadsPage({ searchParams }: PageProps<"/leads">) {
   const requested = readFilters(await searchParams);
+  const stamp = await readChangeStamp();
   const tags = await leads.listTags();
   // A bookmarked filter can point at a deleted tag: drop it instead of showing an unexplained empty list.
   const filters = { ...requested, tagIds: requested.tagIds.filter((id) => tags.some((tag) => tag.id === id)) };
@@ -134,7 +136,7 @@ export default async function LeadsPage({ searchParams }: PageProps<"/leads">) {
 
   return (
     <>
-      <AutoRefresh />
+      <AutoRefresh stamp={stamp} />
       <PageHeader title="Лиды" description={headerDescription(items.length, total)} actions={<NewLeadDialog tags={tags} />} />
       <LeadFilters tags={tags} filters={filters} />
 

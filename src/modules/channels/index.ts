@@ -1,4 +1,4 @@
-import { listConnections } from "./services/business-connection-service";
+import { getConnectionsStamp, listConnections } from "./services/business-connection-service";
 import { notifyManagers } from "./services/notify-service";
 import { getReplyAvailability } from "./services/reply-availability-service";
 import { sendToLead } from "./services/send-to-lead-service";
@@ -9,6 +9,7 @@ export const channels = {
   getReplyAvailability,
   notifyManagers,
   listBusinessConnections: listConnections,
+  getChangeStamp: getConnectionsStamp,
 };
 
 export { formatNotification, type NotificationKind } from "./services/notify-service";

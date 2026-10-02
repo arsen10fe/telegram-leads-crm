@@ -16,4 +16,13 @@ export const businessConnectionRepository = {
   listRecent(limit = 5): Promise<BusinessConnectionRecord[]> {
     return db.businessConnection.findMany({ orderBy: { updatedAt: "desc" }, take: limit });
   },
+
+  /** Changes when a connection is added or its rights change: reply availability depends on it. */
+  async changeStamp(): Promise<string> {
+    const { _count, _max } = await db.businessConnection.aggregate({
+      _count: { _all: true },
+      _max: { updatedAt: true },
+    });
+    return `${_count._all}:${_max.updatedAt?.toISOString() ?? ""}`;
+  },
 };

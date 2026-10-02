@@ -19,6 +19,7 @@ import {
   recordManagerMessage,
   recordOutbound,
 } from "./services/conversation-service";
+import { getChangeStamp } from "./services/change-stamp-service";
 import { ingestInbound, submitIntake } from "./services/ingest-inbound-service";
 import {
   assignTag,
@@ -80,6 +81,8 @@ export const leads = {
   findOrCreateTag,
   updateTag,
   deleteTag,
+  // live CRM pages poll this to refresh only when something changed
+  getChangeStamp,
 };
 
 export { parseContact, parsePhone, telegramContact, type ContactType, type ParsedContact } from "./models/contact";
