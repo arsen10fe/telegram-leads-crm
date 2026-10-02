@@ -160,7 +160,7 @@ export function AiSettingsForm({
               value={newWord}
               onChange={(event) => setNewWord(event.target.value)}
               onKeyDown={onWordKeyDown}
-              placeholder="например, «смет*» или «живой человек»"
+              placeholder="например, «смет*» или «жив* человек*»"
               maxLength={40}
               className="w-72"
             />
@@ -169,7 +169,8 @@ export function AiSettingsForm({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            «слово*» — все формы слова (договор, договора, договором), фраза из нескольких слов — точное совпадение.
+            «слово*» — все формы слова (договор, договора, договором). Фраза — слова подряд, звёздочка работает
+            и в ней: «жив* человек*» поймает «с живым человеком».
             Вопросы о цене сюда не нужны: автопилот отвечает ценами «от» из базы знаний.
           </p>
         </div>

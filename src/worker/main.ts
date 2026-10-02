@@ -3,6 +3,7 @@
 import type { Bot } from "grammy";
 import { ALLOWED_UPDATES, createBot, texts } from "@/modules/channels";
 import { disconnectDb } from "@/shared/db";
+import { waitForDatabase } from "@/shared/db-ready";
 import { getEnv } from "@/shared/env";
 import { startJobRunner, type JobRunner } from "@/shared/jobs";
 import { createLogger } from "@/shared/logger";
@@ -32,6 +33,10 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+
+  // After a host reboot Docker may start this container before Postgres. Telegram's backlog is
+  // consumed only once the database answers; otherwise every insert fails and those leads are lost.
+  await waitForDatabase();
 
   bot = createBot(env.TELEGRAM_BOT_TOKEN);
   try {

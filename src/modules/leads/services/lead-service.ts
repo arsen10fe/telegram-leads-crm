@@ -77,6 +77,11 @@ export async function listLeads(filters: LeadListFilters = {}): Promise<LeadList
   return rows.map(toLeadListItem);
 }
 
+/** All leads matching the filters; the list itself stops at 100, so the page can say so. */
+export async function countLeads(filters: LeadListFilters = {}): Promise<number> {
+  return leadRepository.count(db, filters);
+}
+
 export async function getLeadDetails(leadId: string): Promise<LeadDetails | null> {
   const row = await leadRepository.findDetailsById(db, leadId);
   return row ? toLeadDetails(row) : null;
@@ -134,15 +139,14 @@ export async function assignTag(input: { leadId: string; tagId: string; origin?:
   log.info({ leadId: input.leadId, tagId: input.tagId, origin }, "tag assigned");
 }
 
-/** A manual tag is deleted; an AI tag is dismissed, so the AI never puts it back. */
+/**
+ * Any removed tag is dismissed, never deleted: the row is the manager's "do not re-add" decision,
+ * so the AI never puts it back — also after an accepted AI hint or a remove → add → remove.
+ */
 export async function removeTag(input: { leadId: string; tagId: string }): Promise<void> {
   const assignment = await leadTagRepository.find(db, input.leadId, input.tagId);
   if (!assignment || assignment.dismissedAt) return;
 
-  if (assignment.origin === "ai") {
-    await leadTagRepository.dismiss(db, input.leadId, input.tagId, new Date());
-  } else {
-    await leadTagRepository.delete(db, input.leadId, input.tagId);
-  }
-  log.info({ leadId: input.leadId, tagId: input.tagId, origin: assignment.origin }, "tag removed");
+  await leadTagRepository.dismiss(db, input.leadId, input.tagId, new Date());
+  log.info({ leadId: input.leadId, tagId: input.tagId, origin: assignment.origin, fix: "DEF-04" }, "tag removed (dismissed)");
 }

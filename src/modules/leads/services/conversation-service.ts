@@ -40,8 +40,19 @@ export async function recordOutbound(input: OutboundInput): Promise<{ messageId:
       actorId: input.actorId ?? null,
       meta: input.meta,
     });
-    if (!input.deliveryError) {
-      await leadRepository.update(tx, lead.id, { lastOutboundAt: now, lastActivityAt: now });
+    if (input.deliveryError) return message.id;
+    const managerTookOver = input.author === "manager";
+    await leadRepository.update(tx, lead.id, {
+      lastOutboundAt: now,
+      lastActivityAt: now,
+      ...(managerTookOver && lead.aiMode === "autopilot" ? { aiMode: "copilot" as const } : {}),
+    });
+    if (managerTookOver) {
+      // The manager answered: a pending AI draft is now a stale second answer.
+      await draftRepository.supersedePending(tx, lead.id, now);
+      if (lead.aiMode === "autopilot") {
+        log.info({ leadId: lead.id, fix: "DEF-03" }, "autopilot paused: the manager replied");
+      }
     }
     return message.id;
   });
@@ -78,8 +89,15 @@ export async function recordManagerMessage(
         telegramMessageId: input.telegramMessageId,
         meta: { via: input.via },
       });
-      // The manager answered: the dialog is handled and stale drafts are no longer needed.
-      await leadRepository.update(tx, lead.id, { lastOutboundAt: now, lastActivityAt: now, needsHuman: false });
+      // The manager answered: the dialog is handled, stale drafts are no longer needed and the
+      // autopilot must not answer over the manager.
+      await leadRepository.update(tx, lead.id, {
+        lastOutboundAt: now,
+        lastActivityAt: now,
+        needsHuman: false,
+        ...(lead.aiMode === "autopilot" ? { aiMode: "copilot" as const } : {}),
+      });
+      if (lead.aiMode === "autopilot") log.info({ leadId: lead.id, fix: "DEF-03" }, "autopilot paused: the manager replied in Telegram");
       await draftRepository.supersedePending(tx, lead.id, now);
       return { status: "stored" as const, leadId: lead.id };
     });
@@ -103,6 +121,11 @@ export type ChannelTarget = {
   chatId: bigint;
   lastInboundAt: Date | null;
 };
+
+/** The chat already has a lead in this channel (the bot uses it so /start does not duplicate it). */
+export async function hasLeadInChat(channelKey: string, chatId: bigint): Promise<boolean> {
+  return (await leadRepository.findLatestByChat(db, channelKey, chatId)) !== null;
+}
 
 /** Where to send a reply to this lead; null for leads without a Telegram chat (manual, demo). */
 export async function getChannelTarget(leadId: string): Promise<ChannelTarget | null> {

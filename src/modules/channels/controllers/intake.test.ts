@@ -25,6 +25,7 @@ vi.mock("@/modules/leads", async (importOriginal) => {
   return {
     ...original,
     leads: {
+      hasLeadInChat: vi.fn(async () => false),
       ingestInbound: vi.fn(async () => ({ status: "no_lead" })),
       // Runs the caller's in-transaction hook, like the real service does.
       submitIntake: vi.fn(async (_input: unknown, hooks?: { inTransaction?: (tx: never) => Promise<void> }) => {
@@ -34,6 +35,11 @@ vi.mock("@/modules/leads", async (importOriginal) => {
     },
   };
 });
+
+vi.mock("@/modules/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules/auth")>()),
+  auth: { isNotificationChat: vi.fn(async () => false), linkTelegram: vi.fn() },
+}));
 
 import { leads } from "@/modules/leads";
 import { texts } from "../models/bot-texts";

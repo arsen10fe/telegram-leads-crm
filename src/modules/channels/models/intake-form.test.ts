@@ -70,6 +70,10 @@ describe("advanceIntake", () => {
       expect(advanceIntake("request", data, { kind: "unsupported" })).toMatchObject({ step: "request", retry: "unsupported" });
     });
 
+    it("re-asks when an unknown command arrives instead of the task (DEF-08)", () => {
+      expect(advanceIntake("request", data, text("/help"))).toMatchObject({ step: "request", retry: "invalid" });
+    });
+
     it("restarts a corrupted session instead of creating a broken lead", () => {
       expect(advanceIntake("request", { name: "Пётр" }, text("Нужен сайт"))).toEqual({ kind: "ask", step: "name", data: {} });
     });

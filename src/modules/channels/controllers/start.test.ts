@@ -20,10 +20,15 @@ vi.mock("@/modules/settings", async (importOriginal) => ({
 }));
 vi.mock("@/modules/auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/modules/auth")>()),
-  auth: { linkTelegram: vi.fn() },
+  auth: { linkTelegram: vi.fn(), isNotificationChat: vi.fn(async () => false) },
 }));
+vi.mock("@/modules/leads", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/modules/leads")>();
+  return { ...original, leads: { ...original.leads, hasLeadInChat: vi.fn(async () => false) } };
+});
 
 import { auth } from "@/modules/auth";
+import { leads } from "@/modules/leads";
 import { texts } from "../models/bot-texts";
 import { createBotHarness, updates } from "../test/bot-harness";
 
@@ -62,6 +67,18 @@ describe("/start", () => {
 
     expect(auth.linkTelegram).not.toHaveBeenCalled();
     expect(sentTexts()).toEqual([texts.greeting("Пиксель и Код")]);
+    expect(sessions.get(BigInt(CHAT))).toEqual({ step: "name", data: {} });
+  });
+
+  it("does not start a duplicate form when the client already has a lead; /new does (DEF-09)", async () => {
+    vi.mocked(leads.hasLeadInChat).mockResolvedValueOnce(true);
+    const { send, sentTexts } = createBotHarness();
+
+    await send(updates.text(CHAT, "/start"));
+    expect(sentTexts()).toEqual([texts.alreadyHaveRequest]);
+    expect(sessions.has(BigInt(CHAT))).toBe(false);
+
+    await send(updates.text(CHAT, "/new"));
     expect(sessions.get(BigInt(CHAT))).toEqual({ step: "name", data: {} });
   });
 });

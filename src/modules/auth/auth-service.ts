@@ -101,3 +101,8 @@ export async function listTelegramRecipients(): Promise<bigint[]> {
   const rows = await userRepository.listTelegramChatIds(db);
   return rows.flatMap((row) => (row.telegramChatId === null ? [] : [row.telegramChatId]));
 }
+
+/** The chat is a manager's notification chat with the bot (not a client). */
+export async function isNotificationChat(chatId: bigint): Promise<boolean> {
+  return (await listTelegramRecipients()).includes(chatId);
+}

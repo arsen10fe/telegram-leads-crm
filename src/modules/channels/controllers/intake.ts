@@ -1,8 +1,9 @@
 import { Composer, type Context } from "grammy";
+import { auth } from "@/modules/auth";
 import { BOT_CHANNEL, leads, parseContact, parsePhone, telegramContact } from "@/modules/leads";
 import { createLogger } from "@/shared/logger";
 import { texts } from "../models/bot-texts";
-import { advanceIntake, type CompletedIntake, type IntakeInput } from "../models/intake-form";
+import { advanceIntake, type CompletedIntake, type IntakeInput, type IntakeStep } from "../models/intake-form";
 import { intakeSessionRepository } from "../repositories/intake-session-repository";
 import { replyMarkupFor, startForm } from "./form-helpers";
 
@@ -11,13 +12,20 @@ const log = createLogger("bot.intake");
 export const intakeController = new Composer();
 const privateChats = intakeController.chatType("private");
 
-function toIntakeInput(ctx: Context): IntakeInput {
+function toIntakeInput(ctx: Context, step: IntakeStep): IntakeInput {
   const message = ctx.message;
   if (message?.contact) return { kind: "shared_phone", contact: parsePhone(message.contact.phone_number) };
   if (message?.text === texts.useTelegramButton && ctx.from) {
     return { kind: "use_telegram", contact: telegramContact(ctx.from) };
   }
   if (message?.text) return { kind: "text", text: message.text, contact: parseContact(message.text) };
+  // A photo or file with a caption: the caption is the answer. In the request it keeps the
+  // "[фото]" marker, so the manager knows the client sent an example in the bot chat.
+  if (message?.caption) {
+    const text = step === "request" ? texts.placeholderFor(message) : message.caption;
+    log.debug({ step, fix: "DEF-05" }, "caption used as the form answer");
+    return { kind: "text", text, contact: parseContact(message.caption) };
+  }
   return { kind: "unsupported" };
 }
 
@@ -34,7 +42,14 @@ async function handleFreeMessage(ctx: Context & { chat: { id: number } }, chatId
     from: ctx.from,
     createLeadIfMissing: false,
   });
-  if (result.status === "no_lead") await startForm(ctx, chatId);
+  if (result.status !== "no_lead") return;
+  // A manager answering a notification in their own chat with the bot is not a new client.
+  if (await auth.isNotificationChat(chatId)) {
+    log.info({ chatId: String(chatId), fix: "DEF-07" }, "message in a manager notification chat: no intake form");
+    await ctx.reply(texts.managerChatHint);
+    return;
+  }
+  await startForm(ctx, chatId);
 }
 
 /** Lead + request message + jobs in one transaction; the form session is cleared inside it. */
@@ -56,13 +71,17 @@ async function submit(ctx: Context, chatId: bigint, lead: CompletedIntake): Prom
 
 privateChats.on("message", async (ctx) => {
   const chatId = BigInt(ctx.chat.id);
+  if (!texts.hasClientContent(ctx.message)) {
+    log.debug({ chatId: String(chatId), fix: "DEF-02" }, "service message ignored");
+    return;
+  }
   const session = await intakeSessionRepository.findActive(chatId);
   if (!session) {
     await handleFreeMessage(ctx, chatId);
     return;
   }
 
-  const input = toIntakeInput(ctx);
+  const input = toIntakeInput(ctx, session.step);
   const transition = advanceIntake(session.step, session.data, input);
   if (transition.kind === "complete") {
     await submit(ctx, chatId, transition.lead);

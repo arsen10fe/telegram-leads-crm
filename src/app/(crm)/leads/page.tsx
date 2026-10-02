@@ -42,7 +42,6 @@ function readFilters(params: Record<string, string | string[] | undefined>): Lea
 }
 
 function LeadRow({ lead }: { lead: LeadListItem }) {
-  const extraTags = lead.tags.length - MAX_TAGS_IN_ROW;
   return (
     <ClickableRow href={`/leads/${lead.id}`}>
       <TableCell className="max-w-72 py-3">
@@ -55,64 +54,88 @@ function LeadRow({ lead }: { lead: LeadListItem }) {
             {lead.qualification.summary}
           </div>
         ) : null}
-      </TableCell>
-      <TableCell>
-        <SourceBadge source={lead.source} />
-      </TableCell>
-      <TableCell className="max-w-64">
-        <div className="flex flex-wrap gap-1">
-          {lead.tags.slice(0, MAX_TAGS_IN_ROW).map((tag) => (
-            <TagBadge key={tag.id} name={tag.name} color={tag.color} origin={tag.origin} confidence={tag.confidence} />
-          ))}
-          {extraTags > 0 ? <span className="text-xs text-muted-foreground">+{extraTags}</span> : null}
+        {/* Phones: the columns below are hidden, so status, tags and activity go under the name. */}
+        <div className="mt-2 flex flex-wrap items-center gap-1 sm:hidden">
+          <StatusBadges lead={lead} />
+          <LeadTags lead={lead} />
+          <span className="text-xs text-muted-foreground">
+            <RelativeTime date={lead.lastActivityAt} />
+          </span>
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden md:table-cell">
+        <SourceBadge source={lead.source} />
+      </TableCell>
+      <TableCell className="hidden max-w-64 sm:table-cell">
+        <div className="flex flex-wrap gap-1">
+          <LeadTags lead={lead} />
+        </div>
+      </TableCell>
+      <TableCell className="hidden lg:table-cell">
         <div className="flex flex-wrap gap-1">
           <AiModeBadge mode={lead.aiMode} />
           {lead.qualification ? <TemperatureBadge temperature={lead.qualification.temperature} /> : null}
           <AiStatusBadge status={lead.aiStatus} />
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden sm:table-cell">
         <div className="flex flex-wrap gap-1">
-          {lead.needsHuman ? <NeedsHumanBadge /> : null}
-          {lead.awaitingReply && !lead.needsHuman ? <AwaitingReplyBadge /> : null}
+          <StatusBadges lead={lead} />
         </div>
       </TableCell>
-      <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+      <TableCell className="hidden text-right whitespace-nowrap text-muted-foreground md:table-cell">
         <RelativeTime date={lead.lastActivityAt} />
       </TableCell>
     </ClickableRow>
   );
 }
 
+function LeadTags({ lead }: { lead: LeadListItem }) {
+  const extraTags = lead.tags.length - MAX_TAGS_IN_ROW;
+  return (
+    <>
+      {lead.tags.slice(0, MAX_TAGS_IN_ROW).map((tag) => (
+        <TagBadge key={tag.id} name={tag.name} color={tag.color} origin={tag.origin} confidence={tag.confidence} />
+      ))}
+      {extraTags > 0 ? <span className="text-xs text-muted-foreground">+{extraTags}</span> : null}
+    </>
+  );
+}
+
+function StatusBadges({ lead }: { lead: LeadListItem }) {
+  return (
+    <>
+      {lead.needsHuman ? <NeedsHumanBadge /> : null}
+      {lead.awaitingReply && !lead.needsHuman ? <AwaitingReplyBadge /> : null}
+    </>
+  );
+}
+
+function headerDescription(shown: number, total: number): string | undefined {
+  if (shown === 0) return undefined;
+  if (total > shown) return `Показаны ${shown} из ${countRu(total, ["лида", "лидов", "лидов"])} с последним движением — уточните поиск или фильтры`;
+  return `${countRu(shown, ["лид", "лида", "лидов"])} · сначала те, где было последнее движение`;
+}
+
 export default async function LeadsPage({ searchParams }: PageProps<"/leads">) {
-  const filters = readFilters(await searchParams);
-  const [items, tags] = await Promise.all([
-    leads.listLeads({
-      tagIds: filters.tagIds,
-      source: (filters.source as LeadSourceValue | null) ?? undefined,
-      needsHuman: filters.needsHuman ? true : undefined,
-      q: filters.q,
-    }),
-    leads.listTags(),
-  ]);
+  const requested = readFilters(await searchParams);
+  const tags = await leads.listTags();
+  // A bookmarked filter can point at a deleted tag: drop it instead of showing an unexplained empty list.
+  const filters = { ...requested, tagIds: requested.tagIds.filter((id) => tags.some((tag) => tag.id === id)) };
+  const listFilters = {
+    tagIds: filters.tagIds,
+    source: (filters.source as LeadSourceValue | null) ?? undefined,
+    needsHuman: filters.needsHuman ? true : undefined,
+    q: filters.q,
+  };
+  const [items, total] = await Promise.all([leads.listLeads(listFilters), leads.countLeads(listFilters)]);
   const botUsername = getEnv().TELEGRAM_BOT_USERNAME;
   const hasFilters = filters.tagIds.length > 0 || filters.source !== null || filters.needsHuman || filters.q !== "";
 
   return (
     <>
       <AutoRefresh />
-      <PageHeader
-        title="Лиды"
-        description={
-          items.length > 0
-            ? `${countRu(items.length, ["лид", "лида", "лидов"])} · сначала те, где было последнее движение`
-            : undefined
-        }
-        actions={<NewLeadDialog tags={tags} />}
-      />
+      <PageHeader title="Лиды" description={headerDescription(items.length, total)} actions={<NewLeadDialog tags={tags} />} />
       <LeadFilters tags={tags} filters={filters} />
 
       <div className="rounded-lg border bg-background">
@@ -152,11 +175,11 @@ export default async function LeadsPage({ searchParams }: PageProps<"/leads">) {
             <TableHeader>
               <TableRow>
                 <TableHead>Лид</TableHead>
-                <TableHead>Источник</TableHead>
-                <TableHead>Теги</TableHead>
-                <TableHead>AI</TableHead>
-                <TableHead>Статус</TableHead>
-                <TableHead className="text-right">Активность</TableHead>
+                <TableHead className="hidden md:table-cell">Источник</TableHead>
+                <TableHead className="hidden sm:table-cell">Теги</TableHead>
+                <TableHead className="hidden lg:table-cell">AI</TableHead>
+                <TableHead className="hidden sm:table-cell">Статус</TableHead>
+                <TableHead className="hidden text-right md:table-cell">Активность</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

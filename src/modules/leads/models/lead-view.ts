@@ -50,7 +50,10 @@ export type LeadDetails = LeadListItem & {
   lastInboundAt: Date | null;
   lastOutboundAt: Date | null;
   dismissedTagIds: string[];
+  /** The latest messages, oldest first; earlier ones are left out (see hiddenMessageCount). */
   messages: LeadMessageView[];
+  /** How many earlier messages were not loaded. */
+  hiddenMessageCount: number;
   /** AI messages to the client in the last 24 h (the autopilot cap counts the same thing). */
   aiRepliesLast24h: number;
 };
@@ -92,6 +95,8 @@ type LeadDetailsRowLike = LeadRowBase & {
     meta: unknown;
     createdAt: Date;
   }>;
+  /** Total messages of the lead, when only the latest ones were loaded. */
+  _count?: { messages: number };
 };
 
 export function toTagView(tag: TagRow): TagView {
@@ -154,6 +159,7 @@ export function toLeadDetails(row: LeadDetailsRowLike, now: Date = new Date()): 
       meta: asRecord(message.meta),
       createdAt: message.createdAt,
     })),
+    hiddenMessageCount: Math.max(0, (row._count?.messages ?? row.messages.length) - row.messages.length),
     aiRepliesLast24h: row.messages.filter(
       (message) => message.author === "ai" && message.direction === "outbound" && message.createdAt.getTime() >= since,
     ).length,

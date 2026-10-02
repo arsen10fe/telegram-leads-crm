@@ -25,14 +25,27 @@ const listInclude = {
   },
 } satisfies Prisma.LeadInclude;
 
+/** The lead card re-renders every few seconds: a long chat must not load in full each time. */
+export const THREAD_MESSAGE_LIMIT = 200;
+
 const detailsInclude = {
   // Dismissed tags are loaded too: the AI must know which ones it may not re-add.
   tags: { include: { tag: true }, orderBy: tagOrder },
-  messages: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+  // Newest first so `take` keeps the latest; findDetailsById restores chronological order.
+  messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: THREAD_MESSAGE_LIMIT },
+  _count: { select: { messages: true } },
 } satisfies Prisma.LeadInclude;
 
 export type LeadListRow = Prisma.LeadGetPayload<{ include: typeof listInclude }>;
 export type LeadDetailsRow = Prisma.LeadGetPayload<{ include: typeof detailsInclude }>;
+
+/**
+ * A search string for `contains`, which Prisma turns into ILIKE without escaping: `%`, `_` and `\`
+ * are escaped so they match themselves, and е/ё become `_` (one character) so «Артем» finds «Артём».
+ */
+export function toContainsPattern(q: string): string {
+  return q.replace(/[\\%_]/g, (char) => `\\${char}`).replace(/[её]/gi, "_");
+}
 
 function buildListWhere(filters: LeadListFilters): Prisma.LeadWhereInput {
   const where: Prisma.LeadWhereInput = {};
@@ -43,9 +56,10 @@ function buildListWhere(filters: LeadListFilters): Prisma.LeadWhereInput {
   if (filters.needsHuman !== undefined) where.needsHuman = filters.needsHuman;
   const q = filters.q?.trim();
   if (q) {
+    const pattern = toContainsPattern(q);
     where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { contact: { contains: q, mode: "insensitive" } },
+      { name: { contains: pattern, mode: "insensitive" } },
+      { contact: { contains: pattern, mode: "insensitive" } },
     ];
   }
   return where;
@@ -60,8 +74,13 @@ export const leadRepository = {
     return client.lead.findUnique({ where: { id } });
   },
 
-  findDetailsById(client: Db, id: string) {
-    return client.lead.findUnique({ where: { id }, include: detailsInclude });
+  async findDetailsById(client: Db, id: string) {
+    const row = await client.lead.findUnique({ where: { id }, include: detailsInclude });
+    return row ? { ...row, messages: row.messages.reverse() } : null;
+  },
+
+  count(client: Db, filters: LeadListFilters) {
+    return client.lead.count({ where: buildListWhere(filters) });
   },
 
   /** Free messages in a chat append to the chat's most recent lead. */

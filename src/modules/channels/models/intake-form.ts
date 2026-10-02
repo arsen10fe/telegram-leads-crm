@@ -70,7 +70,9 @@ function requestStep(data: IntakeData, input: IntakeInput): IntakeTransition {
   if (input.kind === "unsupported") return { kind: "ask", step: "request", data, retry: "unsupported" };
   if (input.kind !== "text") return { kind: "ask", step: "request", data, retry: "invalid" };
   const request = input.text.trim();
-  if (request.length < REQUEST_MIN) return { kind: "ask", step: "request", data, retry: "invalid" };
+  // An unknown command (/help, /menu) is not a description of the task.
+  const looksLikeCommand = request.startsWith("/");
+  if (looksLikeCommand || request.length < REQUEST_MIN) return { kind: "ask", step: "request", data, retry: "invalid" };
   // A corrupted session (no name or contact) starts over instead of creating a broken lead.
   if (!data.name || !data.contact || !data.contactType) return { kind: "ask", step: "name", data: {} };
   return {

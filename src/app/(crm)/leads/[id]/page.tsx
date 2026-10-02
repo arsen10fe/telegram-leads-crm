@@ -102,7 +102,7 @@ export default async function LeadPage({ params }: PageProps<"/leads/[id]">) {
           <CardHeader className="border-b py-3">
             <CardTitle className="text-base">Переписка</CardTitle>
           </CardHeader>
-          <ConversationThread messages={lead.messages} clientName={lead.name} />
+          <ConversationThread messages={lead.messages} clientName={lead.name} hiddenCount={lead.hiddenMessageCount} />
           {/* Stable key: the typed text survives the auto-refresh and a superseded draft */}
           <ReplyComposer
             key={lead.id}

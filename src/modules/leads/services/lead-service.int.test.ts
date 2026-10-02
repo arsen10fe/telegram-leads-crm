@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/shared/db";
+import { saveQualification } from "./ai-api-service";
 import { assignTag, createManualLead, listLeads, removeTag, setAiMode } from "./lead-service";
 import { createTag } from "./tag-service";
 
@@ -50,7 +51,7 @@ describe("lead service (integration)", () => {
     expect(await listLeads({ tagIds: [site.id] })).toEqual([]);
   });
 
-  it("deletes a removed manual tag; re-assigning a dismissed AI tag makes it manual again", async () => {
+  it("hides a removed manual tag; re-assigning a dismissed AI tag makes it manual again", async () => {
     const { site, hot } = await tags();
     const { leadId } = await createManualLead({ name: "Мария", tagIds: [hot.id] }, null);
     await db.leadTag.create({ data: { leadId, tagId: site.id, origin: "ai", dismissedAt: new Date() } });
@@ -58,8 +59,53 @@ describe("lead service (integration)", () => {
     await removeTag({ leadId, tagId: hot.id });
     await assignTag({ leadId, tagId: site.id });
 
-    const rows = await db.leadTag.findMany({ where: { leadId } });
-    expect(rows).toEqual([expect.objectContaining({ tagId: site.id, origin: "manual", dismissedAt: null })]);
+    const [lead] = await listLeads({});
+    expect(lead?.tags.map((tag) => tag.id)).toEqual([site.id]);
+    expect(await db.leadTag.findUniqueOrThrow({ where: { leadId_tagId: { leadId, tagId: site.id } } })).toMatchObject({
+      origin: "manual",
+      dismissedAt: null,
+    });
+  });
+
+  it("never lets the AI put back a tag the manager removed, whatever its origin (DEF-04)", async () => {
+    const { site, hot } = await tags();
+    const { leadId } = await createManualLead({ name: "Мария", tagIds: [hot.id] }, null);
+    const qualification = {
+      service: "website" as const,
+      budget: null,
+      urgency: "normal" as const,
+      temperature: "hot" as const,
+      summary: "Сайт",
+      confidence: 0.9,
+      hints: [],
+    };
+    // The AI adds «Сайт»; the manager removes it, adds it back, then removes it again.
+    await saveQualification({ leadId, qualification, aiTags: [{ tagId: site.id, confidence: 0.9 }] });
+    await removeTag({ leadId, tagId: site.id });
+    await assignTag({ leadId, tagId: site.id });
+    await removeTag({ leadId, tagId: site.id });
+    // The manager also removes a tag they had added by hand.
+    await removeTag({ leadId, tagId: hot.id });
+
+    // The client writes again: qualification runs and suggests both tags.
+    await saveQualification({ leadId, qualification, aiTags: [{ tagId: site.id, confidence: 0.95 }, { tagId: hot.id, confidence: 0.95 }] });
+
+    const [lead] = await listLeads({});
+    expect(lead?.tags).toEqual([]);
+  });
+
+  it("searches special characters literally and treats ё and е as the same letter (DEF-10)", async () => {
+    await createManualLead({ name: "Анна", contact: "@anna_smirnova" }, null);
+    await createManualLead({ name: "Борис", contact: "@borisx" }, null);
+    await createManualLead({ name: "Артём Котов", contact: "artem@mail.ru" }, null);
+    const names = async (q: string) => (await listLeads({ q })).map((lead) => lead.name).sort();
+
+    expect(await names("%")).toEqual([]);
+    expect(await names("_")).toEqual(["Анна"]);
+    expect(await names("anna_s")).toEqual(["Анна"]);
+    expect(await names("\\")).toEqual([]);
+    expect(await names("Артем")).toEqual(["Артём Котов"]);
+    expect(await names("артём")).toEqual(["Артём Котов"]);
   });
 
   it("orders the list by last activity, newest first, and flags leads awaiting a reply", async () => {

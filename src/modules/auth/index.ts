@@ -1,6 +1,7 @@
 import {
   createTelegramLinkToken,
   getUser,
+  isNotificationChat,
   linkTelegram,
   listTelegramRecipients,
   login,
@@ -17,6 +18,7 @@ export const auth = {
   linkTelegram,
   unlinkTelegram,
   listTelegramRecipients,
+  isNotificationChat,
 };
 
 export { maskEmail, type SessionUser } from "./auth-service";

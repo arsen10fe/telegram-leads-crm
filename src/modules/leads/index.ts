@@ -15,12 +15,14 @@ import {
 import {
   getChannelTarget,
   getLeadSummary,
+  hasLeadInChat,
   recordManagerMessage,
   recordOutbound,
 } from "./services/conversation-service";
 import { ingestInbound, submitIntake } from "./services/ingest-inbound-service";
 import {
   assignTag,
+  countLeads,
   createManualLead,
   getLeadDetails,
   listLeads,
@@ -48,6 +50,7 @@ export const leads = {
   recordManagerMessage,
   getChannelTarget,
   getLeadSummary,
+  hasLeadInChat,
   // AI-facing API (used by the ai module and its jobs)
   getAiContext,
   getAutopilotState,
@@ -64,6 +67,7 @@ export const leads = {
   // leads and tags
   createManualLead,
   listLeads,
+  countLeads,
   getLeadDetails,
   updateLeadFields,
   setAiMode,

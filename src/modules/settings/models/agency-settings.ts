@@ -4,20 +4,22 @@ export const AI_MODES = ["autopilot", "copilot", "off"] as const;
 export type AiModeValue = (typeof AI_MODES)[number];
 
 /**
- * Handoff triggers for the autopilot: "word*" = prefix, "two words" = phrase, "word" = exact token.
+ * Handoff triggers for the autopilot: "word*" = prefix, "two words" = adjacent words (each may end
+ * with *), "word" = exact word. Russian words change their endings, so phrases use prefixes.
  * Price questions are deliberately absent: the autopilot answers "от …" from the knowledge base.
  */
 export const DEFAULT_TRIGGER_WORDS = [
   "договор*",
   "оплат*",
+  "оплач*",
   "смет*",
   "кп",
-  "коммерческое предложение",
+  "коммерческ* предложени*",
   "скидк*",
   "менеджер*",
   "оператор*",
   "позвон*",
-  "живой человек",
+  "жив* человек*",
   "жалоб*",
   "возврат*",
 ];

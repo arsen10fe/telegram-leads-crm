@@ -18,6 +18,25 @@ describe("matchTriggers", () => {
     expect(matchTriggers(texts, patterns)?.pattern ?? null).toBe(expected);
   });
 
+  it.each([
+    [["живой   человек нужен"], ["живой человек"], "живой человек"], // extra spaces
+    [["нужен живой\nчеловек"], ["живой человек"], "живой человек"], // a line break
+    [["Позовите живого человека"], ["жив* человек*"], "жив* человек*"], // inflected forms
+    [["Хочу поговорить с живым человеком"], ["жив* человек*"], "жив* человек*"],
+    [["Пришлите коммерческое предложение"], ["коммерческ* предложени*"], "коммерческ* предложени*"],
+    [["интеграция с 1С нужна"], ["1с"], "1с"], // digits are part of a word
+    [["Живой отклик, человек"], ["жив* человек*"], null], // words must be adjacent
+    [["живой", "человек"], ["живой человек"], null], // never across two messages
+  ])("DEF-06: phrases are matched word by word — %j with %j → %s", (texts, patterns, expected) => {
+    expect(matchTriggers(texts, patterns)?.pattern ?? null).toBe(expected);
+  });
+
+  it("DEF-06: the default list hands natural requests for a human, an offer or payment to a manager", () => {
+    for (const text of ["Хочу поговорить с живым человеком", "Позовите живого человека", "Пришлите коммерческое предложение", "оплачу завтра, ок?"]) {
+      expect(matchTriggers([text], DEFAULT_TRIGGER_WORDS), text).not.toBeNull();
+    }
+  });
+
   it("ignores empty patterns", () => {
     expect(matchTriggers(["что угодно"], ["", "  ", "*"])).toBeNull();
   });

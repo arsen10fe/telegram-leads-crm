@@ -1,7 +1,8 @@
 import { autoRetry } from "@grammyjs/auto-retry";
-import { Bot, GrammyError, HttpError, type BotConfig, type Context } from "grammy";
+import { Bot, type BotConfig, type Context } from "grammy";
 import { createLogger } from "@/shared/logger";
 import { AUTO_RETRY_OPTIONS } from "./adapters/telegram-api";
+import { createBotErrorHandler } from "./bot-error-handler";
 import { businessController } from "./controllers/business";
 import { intakeController } from "./controllers/intake";
 import { startController } from "./controllers/start";
@@ -42,17 +43,8 @@ export function createBot(token: string, options?: BotConfig<Context>): Bot {
   bot.use(businessController); // business_* updates (requirement 2)
   bot.use(intakeController); // form steps and free messages — keep last
 
-  bot.catch((error) => {
-    const updateId = error.ctx.update.update_id;
-    const cause = error.error;
-    if (cause instanceof GrammyError) {
-      log.error({ updateId, code: cause.error_code, description: cause.description }, "bot api error");
-    } else if (cause instanceof HttpError) {
-      log.error({ updateId, err: cause.error }, "telegram unreachable");
-    } else {
-      log.error({ updateId, err: cause }, "bot handler failed");
-    }
-  });
+  // A database outage must not lose the update: see createBotErrorHandler.
+  bot.catch(createBotErrorHandler({ handleAgain: (update) => bot.handleUpdate(update) }));
 
   return bot;
 }

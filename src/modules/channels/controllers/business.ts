@@ -36,6 +36,10 @@ businessController.on("business_message", async (ctx) => {
   }
   // An echo of a message we sent on the owner's behalf (the unique key would also catch it).
   if (message.sender_business_bot) return;
+  if (!texts.hasClientContent(message)) {
+    log.debug({ connectionId, chatId: message.chat.id, fix: "DEF-02" }, "business service message ignored");
+    return;
+  }
 
   const isOwner = BigInt(ctx.from.id) === connection.ownerUserId;
   log.debug({ connectionId, chatId: message.chat.id, isOwner }, "business message");

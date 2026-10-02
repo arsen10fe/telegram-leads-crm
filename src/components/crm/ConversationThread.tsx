@@ -68,7 +68,16 @@ function Bubble({ message, clientName }: { message: LeadMessageView; clientName:
 }
 
 /** Rendered from props on every refresh — no client copy of the messages that could go stale. */
-export function ConversationThread({ messages, clientName }: { messages: LeadMessageView[]; clientName: string }) {
+export function ConversationThread({
+  messages,
+  clientName,
+  hiddenCount = 0,
+}: {
+  messages: LeadMessageView[];
+  clientName: string;
+  /** Earlier messages that were not loaded (the card shows only the latest ones). */
+  hiddenCount?: number;
+}) {
   if (messages.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center px-6 text-center text-sm text-muted-foreground">
@@ -81,6 +90,11 @@ export function ConversationThread({ messages, clientName }: { messages: LeadMes
   return (
     <ThreadAutoScroll messageCount={messages.length}>
       <div className="flex flex-col gap-3">
+        {hiddenCount > 0 ? (
+          <div className="text-center text-xs text-muted-foreground">
+            Показаны последние {messages.length} сообщений, ещё {hiddenCount} раньше — они остались в Telegram.
+          </div>
+        ) : null}
         {messages.map((message, index) => {
           const showDay = index === 0 || days[index] !== days[index - 1];
           return (
