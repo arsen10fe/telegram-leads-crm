@@ -52,6 +52,8 @@ export function AutoRefresh({
 
   useEffect(() => {
     const tick = () => void live.tick();
+    // The page may come from the router cache (staleTimes.dynamic): check right away, not in 4 s.
+    tick();
     const timer = setInterval(tick, intervalMs);
     // Catch up as soon as the manager returns to the tab.
     document.addEventListener("visibilitychange", tick);

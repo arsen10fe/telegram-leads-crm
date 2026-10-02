@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
   // No framework banner in every response.
   poweredByHeader: false,
 
+  // Keep visited CRM pages in the browser's router cache for 30 s (Next 16 default: 0), so going
+  // back to a section is instant instead of a server round trip; AutoRefresh checks freshness on
+  // mount and refreshes only if the data changed.
+  experimental: {
+    staleTimes: { dynamic: 30 },
+  },
+
   // Browsers still ask for /favicon.ico; the icon itself is app/icon.svg.
   async rewrites() {
     return [{ source: "/favicon.ico", destination: "/icon.svg" }];
