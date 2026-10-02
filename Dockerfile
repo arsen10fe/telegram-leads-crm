@@ -32,6 +32,8 @@ COPY --from=builder --chown=app:app /app/.next ./.next
 COPY --from=builder --chown=app:app /app/src ./src
 COPY --chown=app:app package.json package-lock.json next.config.ts tsconfig.json prisma.config.ts ./
 COPY --chown=app:app prisma ./prisma
+# Operational scripts run inside the container, e.g. `npx tsx scripts/ai-smoke.ts`.
+COPY --chown=app:app scripts ./scripts
 
 USER app
 EXPOSE 3000

@@ -1,0 +1,6 @@
+# Lidogram: nightly database backup at 00:50 UTC (deploy/backup.sh, docs/deployment.md).
+# A file in /etc/cron.d, so the shared root crontab is never rewritten. The time is clear of the
+# other jobs on this host. The script logs to syslog under the tag lidogram-backup.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+50 0 * * * root /opt/lidogram/deploy/backup.sh > /dev/null 2>&1

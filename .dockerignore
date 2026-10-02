@@ -22,5 +22,6 @@ deploy
 compose*.yml
 Dockerfile
 Caddyfile
+lidogram-release.tgz
 *.log
 .DS_Store

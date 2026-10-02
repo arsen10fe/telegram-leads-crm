@@ -17,6 +17,9 @@ src/generated/
 !.env.example
 *.pem
 
+# release tarball built by deploy/pack.sh
+lidogram-release.tgz
+
 # logs & OS
 *.log
 .DS_Store

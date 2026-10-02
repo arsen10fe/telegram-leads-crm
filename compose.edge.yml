@@ -1,0 +1,27 @@
+# Optional edge for a DEDICATED server: Caddy with automatic Let's Encrypt TLS on ports 80 and 443.
+# Never use it on a shared host: there 80/443 belong to the host's own nginx (docs/deployment.md).
+#   docker compose -f compose.prod.yml -f compose.edge.yml up -d --build
+# Needs APP_DOMAIN in .env: crm.example.com or <name>.<ip-with-dashes>.sslip.io.
+# Caddy forwards the Host header, so Server Actions pass Next.js's Origin check.
+services:
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web: { condition: service_healthy }
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  caddy-data:
+  caddy-config:

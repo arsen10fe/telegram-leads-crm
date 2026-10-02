@@ -1,17 +1,22 @@
-# Production: self-contained, host-agnostic. One image, four services (+ optional Caddy).
-#   docker compose -f compose.prod.yml up -d --build                  # behind the host's own nginx
-#   docker compose -f compose.prod.yml --profile edge up -d --build   # with Caddy and automatic TLS
+# Production: one image, four services, self-contained. Nothing here binds 80/443 or a public port:
+# `web` is published on 127.0.0.1 only, for the host's own nginx (see docs/deployment.md).
+#   docker compose -p lidogram -f compose.prod.yml build web   # the only build: one image for all
+#   docker compose -p lidogram -f compose.prod.yml up -d
+# A dedicated server without its own proxy adds Caddy and automatic TLS from compose.edge.yml:
+#   docker compose -f compose.prod.yml -f compose.edge.yml up -d --build
 # Secrets and settings come from .env (see the production section of .env.example).
 name: lidogram
 
 x-app: &app
-  build: .
   image: lidogram:latest
   env_file: .env
   environment:
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     NODE_ENV: production
     TZ: Europe/Moscow
+  # Node needs no Linux capabilities; dropping them limits the damage a compromised app could do.
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
   logging:
     driver: json-file
     options: { max-size: "10m", max-file: "3" }
@@ -30,7 +35,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    # The entrypoint needs chown/setuid, so postgres keeps Docker's default capabilities.
     mem_limit: 512m
+    cpus: 0.5
     restart: unless-stopped
     logging:
       driver: json-file
@@ -39,16 +46,22 @@ services:
   # One-shot: schema migrations, then the create-only seed (never overwrites CRM edits).
   migrate:
     <<: *app
+    # Uses the image `web` builds; never pulled (a registry image with this name is not ours).
+    pull_policy: never
     command: ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts"]
     depends_on:
       postgres: { condition: service_healthy }
+    mem_limit: 512m
+    cpus: 1.0
     restart: "no"
 
   web:
     <<: *app
+    # The only service with a build: one image for web, bot and migrate, built once per deploy.
+    build: .
     command: ["npx", "next", "start", "-H", "0.0.0.0", "-p", "3000"]
     ports:
-      - "127.0.0.1:${APP_HTTP_PORT:-3000}:3000"
+      - "127.0.0.1:${APP_HTTP_PORT:?set APP_HTTP_PORT in .env}:3000"
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:
@@ -58,37 +71,22 @@ services:
       retries: 5
       start_period: 30s
     mem_limit: 1g
+    cpus: 1.0
     restart: unless-stopped
 
   # The only consumer of Telegram updates for this token (long polling) + the job runner.
   bot:
     <<: *app
+    pull_policy: never
     command: ["npx", "tsx", "src/worker/main.ts"]
     depends_on:
       migrate: { condition: service_completed_successfully }
-    stop_grace_period: 30s
+    # Longer than one job can run (60 s timeout; an LLM call takes up to ~41 s), so a deploy lets
+    # the current job finish instead of killing it mid-way.
+    stop_grace_period: 75s
     mem_limit: 512m
-    restart: unless-stopped
-
-  # Optional edge proxy with automatic Let's Encrypt TLS. Caddy forwards the Host header,
-  # so Server Actions pass Next.js's Origin check.
-  caddy:
-    image: caddy:2-alpine
-    profiles: ["edge"]
-    environment:
-      APP_DOMAIN: ${APP_DOMAIN}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      web: { condition: service_healthy }
+    cpus: 1.0
     restart: unless-stopped
 
 volumes:
   pg-data:
-  caddy-data:
-  caddy-config:
